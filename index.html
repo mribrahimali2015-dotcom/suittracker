@@ -1,1 +1,1673 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Suit Tracker (Counts → Leads Sync) + Dashboard</title>
+  <style>
+    :root{ --bg:#0b0c10; --card:#12141b; --fg:#e9eef7; --muted:#a8b0c2; --border:#23283a; --soft:#0e1016; --btn:#1a1f2e; }
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--fg); }
+    header{ padding:18px; border-bottom:1px solid var(--border); background:rgba(0,0,0,.2); position:sticky; top:0; z-index:10; }
+    h1{ margin:0; font-size:18px; }
+    main{ max-width:1400px; margin:0 auto; padding:18px; display:grid; gap:14px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; }
+    .muted{ color:var(--muted); }
+    .small{ font-size:12px; }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input,select{ width:100%; padding:10px; border-radius:12px; border:1px solid var(--border); background:var(--soft); color:var(--fg); }
+    button{ padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:var(--btn); color:var(--fg); cursor:pointer; }
+    button:hover{ filter:brightness(1.08); }
+    .btn-row{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+    .topline{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .inline{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .pill{ padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:var(--soft); color:var(--muted); font-size:12px; display:inline-block; }
+    .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+    .tab{ border:1px solid var(--border); background:var(--soft); color:var(--muted); padding:8px 10px; border-radius:999px; cursor:pointer; font-size:12px; }
+    .tab.active{ background:var(--btn); color:var(--fg); }
+    .grid2{ display:grid; grid-template-columns:1fr; gap:14px; align-items:start; }
+    @media(min-width:1100px){ .grid2{ grid-template-columns:420px 1fr; } }
+    table{ width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td{ border-bottom:1px solid var(--border); padding:10px 8px; text-align:left; font-size:13px; vertical-align:top; }
+    th{ color:var(--muted); font-weight:600; }
+    .right{ text-align:right; }
+    .hidden{ display:none; }
+    .divider{ border:0; border-top:1px solid var(--border); margin:14px 0; }
+    .mini{ padding:6px 10px; border-radius:12px; }
 
+    .inlineSelect{ width:auto; padding:6px 10px; border-radius:12px; }
+    .inlineSelect.small{ padding:6px 8px; }
+    .danger{ background:#2a1212; }
+    .warn{ background:#2a2412; }
+    .ok{ background:#102415; }
+
+    /* KPI grid (auto wraps nicely) */
+    .kpis{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:10px; }
+    @media(min-width:800px){ .kpis{ grid-template-columns:repeat(7,1fr); } } /* now 7 cards */
+    .kpi{ border:1px solid var(--border); border-radius:14px; padding:12px; background:var(--soft); }
+    .kpi .num{ font-size:20px; font-weight:700; }
+    .kpi .lbl{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+    .badge{ display:inline-block; padding:2px 8px; border:1px solid var(--border); border-radius:999px; font-size:12px; background:var(--soft); color:var(--muted); }
+  </style>
+</head>
+
+<body>
+<header class="topline">
+  <div class="inline">
+    <h1>Suit Tracker</h1>
+    <span class="pill">Counts → Leads Sync</span>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button class="tab active" id="tabToday" type="button">Enquiries</button>
+    <button class="tab" id="tabLeads" type="button">Tab 2: Leads &amp; Bookings</button>
+    <button class="tab" id="tabDashboard" type="button">Dashboard</button>
+    <button class="tab" id="tabStaff" type="button">Staff</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section id="viewDashboard" class="hidden">
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Dashboard</h2>
+          <p class="muted" style="margin:6px 0 0;">
+            Daily / Weekly / Monthly / Quarterly / Yearly. (Synchronised across Tab 1 + Tab 2)
+          </p>
+        </div>
+
+        <div class="inline">
+          <select id="d_range" aria-label="Timeframe" style="max-width:170px;">
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="year">Yearly</option>
+          </select>
+          <input id="d_refDate" type="date" aria-label="Reference date" style="max-width:170px;" />
+
+          <select id="d_attrib" aria-label="Sales attribution" style="max-width:280px;">
+            <option value="served">Credit Attended/Sales to Served by</option>
+            <option value="captured">Credit Attended/Sales to Captured by</option>
+          </select>
+
+          <button type="button" id="resetAll">Clear All Data</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="num" id="kpiNew">0</div><div class="lbl">New enquiries</div></div>
+        <div class="kpi"><div class="num" id="kpiDetails">0</div><div class="lbl">Details provided</div></div>
+        <div class="kpi"><div class="num" id="kpiBookedCounts">0</div><div class="lbl">Appointments booked</div></div>
+        <div class="kpi"><div class="num" id="kpiAttended">0</div><div class="lbl">Appointments attended</div></div>
+        <div class="kpi"><div class="num" id="kpiSales">0</div><div class="lbl">Sales (ref verified)</div></div>
+
+        <!-- UPDATED conversion KPIs -->
+        <div class="kpi"><div class="num" id="kpiDetailsToBooked">0%</div><div class="lbl">Details → Booked</div></div>
+        <div class="kpi"><div class="num" id="kpiAttendedToSales">0%</div><div class="lbl">Attended → Sales</div></div>
+      </div>
+
+      <p class="muted small" style="margin:10px 0 0;">
+        Notes:
+        <span class="badge">Booked</span> comes from Tab 1.
+        <span class="badge">Attended</span> = leads where status is <b>Attended</b>.
+        <span class="badge">Sales</span> = leads where sale is <b>Yes</b> AND a valid <b>4-digit ref</b> is entered.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0;font-size:16px;">Breakdown by Source (selected timeframe)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th><th>New</th><th>Details</th><th>Booked</th><th>Attended</th><th>Sales</th>
+            <th>Details→Booked%</th><th>Attended→Sales%</th>
+          </tr>
+        </thead>
+        <tbody id="dashBySource"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0;font-size:16px;">Breakdown by Staff (selected timeframe)</h2>
+      <p class="muted small" style="margin:6px 0 0;">
+        New/Details/Booked are credited to Tab 1 staff. Attended/Sales credit uses the dropdown above (Served by or Captured by).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th><th>New</th><th>Details</th><th>Booked</th><th>Attended</th><th>Sales</th>
+            <th>Details→Booked%</th><th>Attended→Sales%</th>
+          </tr>
+        </thead>
+        <tbody id="dashByStaff"></tbody>
+      </table>
+    </section>
+  </section>
+
+  <!-- ===================== TAB 1: TODAY / OPEN ===================== -->
+  <section id="viewToday">
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Enquiries</h2>
+          <p class="muted" style="margin:6px 0 0;">Use this screen during the day. You can change the <b>working date</b> to backdate counts (e.g., when details come in the next day). Open (unbooked) leads are listed below.</p>
+        </div>
+        <div class="inline">
+          <span class="pill">Working date</span>
+          <input id="c_filterDate" type="date" aria-label="Working date" style="max-width:170px;" />
+          <button type="button" id="goLeadsFromToday">Go to Leads</button>
+                  </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Unbooked enquiries</h2>
+          <p class="muted" style="margin:6px 0 0;">Leads with details captured but no appointment booked yet. Use <b>Edit</b> to book / update.</p>
+        </div>
+        <div class="inline">
+          <select id="o_scope" aria-label="Open leads scope" style="max-width:210px;">
+            <option value="all">All open</option>
+            <option value="day">Open from working date</option>
+          </select>
+          <input id="o_search" type="text" placeholder="Search open leads…" style="max-width:300px;" />
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Source</th><th>Captured By</th>
+            <th>Name</th><th>Phone</th>
+            <th>Lead Status</th><th>Booked By</th>
+            <th class="right"></th>
+          </tr>
+        </thead>
+        <tbody id="openLeadsTbody"></tbody>
+      </table>
+
+
+    </section>
+
+    <section class="grid2">
+      <section class="card">
+        <div class="topline">
+          <div>
+            <h2 style="margin:0;font-size:16px;">Add / Update Daily Counts</h2>
+            <p class="muted small" style="margin:6px 0 0;">One row per <strong>Date + Source + Staff</strong>. Use <b>Edit</b> in the table to change.</p>
+          </div>
+          <span class="pill" id="countsModePill">Mode: Add</span>
+        </div>
+
+        <form id="countsForm">
+          <input id="c_editKey" type="hidden" />
+          <input id="c_date" type="hidden" required />
+
+          <label>Source</label>
+          <select id="c_source" required>
+            <option value="">Select…</option>
+            <option>Instagram</option>
+            <option>TikTok</option>
+            <option>Google Ads</option>
+            <option>Walk-in</option>
+            <option>Self-booked</option>
+          </select>
+
+          <label>Staff (who handled the enquiries)</label>
+          <select id="c_staff" required></select>
+          <p class="muted small" style="margin:6px 0 0;">Missing a name? Add it in the <b>Staff</b> tab.</p>
+
+          <label>New enquiries (count)</label>
+          <input id="c_new" type="number" min="0" step="1" value="0" required />
+
+          <label>Details provided (count)</label>
+          <input id="c_details" type="number" min="0" step="1" value="0" required />
+
+          <label>Appointments booked (count)</label>
+          <input id="c_booked" type="number" min="0" step="1" value="0" required />
+
+          <div class="btn-row">
+            <button type="submit" id="countsSaveBtn">Save Counts</button>
+            <button type="button" id="countsCancelBtn" class="hidden">Cancel Edit</button>
+          </div>
+
+          <p class="muted small" style="margin:10px 0 0;">Tip: <b>Details</b> and <b>Booked</b> can be follow-ups from earlier days (so they may be higher than <b>New</b> on the working date).</p>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="topline">
+          <div>
+            <h2 style="margin:0;font-size:16px;">Counts Table (working date)</h2>
+            <p class="muted" style="margin:6px 0 0;">Leads Entered is how many lead records exist in Tab 2 for that bucket.</p>
+          </div>
+          <div class="inline">
+            <input id="c_search" type="text" placeholder="Filter source/staff…" style="max-width:240px;" />
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Source</th><th>Staff</th>
+              <th>New</th><th>Details</th><th>Booked</th>
+              <th>Leads Entered</th><th>Remaining</th>
+              <th class="right"></th>
+            </tr>
+          </thead>
+          <tbody id="countsTbody"></tbody>
+        </table>
+      </section>
+    </section>
+  </section>
+
+  <!-- ===================== TAB 2: LEADS ===================== -->
+  <section id="viewLeads" class="hidden">
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Tab 2: Leads &amp; Bookings</h2>
+          <p class="muted" style="margin:6px 0 0;">Add lead details, book appointments, then later mark attended / sale.</p>
+        </div>
+        <div class="inline">
+          <select id="l_view" aria-label="Lead list filter" style="max-width:160px;">
+            <option value="booked">Booked leads</option>
+            <option value="all">All leads</option>
+          </select>
+          <select id="l_range" aria-label="Lead timeframe" style="max-width:160px;">
+            <option value="all">All leads</option>
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="year">Yearly</option>
+          </select>
+          <input id="l_refDate" type="date" aria-label="Reference date" style="max-width:170px;" />
+          <input id="l_search" type="text" placeholder="Search name/phone/source/staff…" style="max-width:300px;" />
+                  </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Today's Appointments</h2>
+          <p class="muted" style="margin:6px 0 0;">Appointments pulled from leads where an <b>Appointment date</b> is set.</p>
+        </div>
+        <div class="inline">
+          <button type="button" id="apptAddBtn">Add appointment</button>
+          <input id="a_date" type="date" aria-label="Appointments date" style="max-width:170px;" />
+          <select id="a_status" aria-label="Appointment status filter" style="max-width:170px;">
+            <option value="">All statuses</option>
+            <option>Scheduled</option>
+            <option>Attended</option>
+            <option>Cancelled</option>
+            <option>Rescheduled</option>
+            <option>No-show</option>
+          </select>
+          <input id="a_search" type="text" placeholder="Search appointments…" style="max-width:260px;" />
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>Name</th><th>Phone</th><th>Source</th><th>Captured By</th>
+            <th>Booked By</th><th>Served By</th><th>Status</th><th>Sale</th><th>Ref</th>
+            <th class="right"></th>
+          </tr>
+        </thead>
+        <tbody id="apptTbody"></tbody>
+      </table>
+    </section>
+
+    <section class="grid2">
+      <section class="card">
+        <h2 style="margin:0;font-size:16px;">Add / Edit Lead</h2>
+
+        <form id="leadForm">
+          <input id="l_editId" type="hidden" />
+
+          <label>Bucket (Date • Source • Staff)</label>
+          <select id="l_bucket" required></select>
+
+          <label>Customer name</label>
+          <input id="l_name" type="text" required />
+
+          <label>Phone number</label>
+          <input id="l_phone" type="tel" required />
+
+          <label>Lead status</label>
+          <select id="l_leadStatus">
+            <option>New</option>
+            <option>Follow-up</option>
+            <option>Details received</option>
+            <option>Booked</option>
+            <option>Not interested</option>
+          </select>
+
+          <label>Appointment date (optional)</label>
+          <input id="l_apptDate" type="date" />
+
+          <label>Appointment time (optional)</label>
+          <input id="l_apptTime" type="time" />
+
+          <label>Appointment status</label>
+          <select id="l_apptStatus">
+            <option value="">—</option>
+            <option>Scheduled</option>
+            <option>Attended</option>
+            <option>Cancelled</option>
+            <option>Rescheduled</option>
+            <option>No-show</option>
+          </select>
+
+          <label>Booked by (who booked the appointment)</label>
+          <select id="l_bookedBy"></select>
+
+          <label>Served by (who ran the appointment / closed the sale)</label>
+          <select id="l_servedBy"></select>
+
+          <label>Sale outcome</label>
+          <select id="l_sale">
+            <option value="">—</option>
+            <option value="Yes">Sale</option>
+            <option value="No">No sale</option>
+          </select>
+
+          <label id="l_saleRefLabel">Sale reference (4 digits)</label>
+          <input id="l_saleRef" type="text" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="e.g., 4821" />
+          <p class="muted small" id="l_saleRefHint" style="margin:6px 0 0;">Required only if Sale = Yes.</p>
+
+          <div class="btn-row">
+            <button type="submit" id="leadSaveBtn">Save Lead</button>
+            <button type="button" id="leadCancelBtn" class="hidden">Cancel Edit</button>
+            <button type="button" id="goTodayFromLeads">Go to Enquiries</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2 style="margin:0;font-size:16px;">Lead List</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Source</th><th>Captured By</th>
+              <th>Name</th><th>Phone</th>
+              <th>Lead Status</th><th>Booked By</th>
+              <th>Appt</th><th>Appt Status</th><th>Served By</th>
+              <th>Ref</th><th>Sale</th>
+              <th class="right"></th>
+            </tr>
+          </thead>
+          <tbody id="leadsTbody"></tbody>
+        </table>
+      </section>
+    </section>
+  </section>
+
+
+  <!-- ===================== STAFF ===================== -->
+  <section id="viewStaff" class="hidden">
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin:0;font-size:16px;">Staff</h2>
+          <p class="muted" style="margin:6px 0 0;">Manage the staff list used in dropdowns on this shared iPad.</p>
+        </div>
+        <div class="inline">
+          <input id="staffName" type="text" placeholder="Add staff name…" style="max-width:260px;" />
+          <button type="button" id="staffAddBtn">Add Staff</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>Status</th><th class="right"></th>
+          </tr>
+        </thead>
+        <tbody id="staffTbody"></tbody>
+      </table>
+
+      <p class="muted small" style="margin:10px 0 0;">Tip: Deactivate a staff member to hide them from dropdowns (history stays intact).</p>
+    </section>
+  </section>
+
+</main>
+
+<script>
+  const COUNTS_KEY = "suit_counts_v7";
+  const LEADS_KEY  = "suit_leads_v7";
+  const STAFF_KEY  = "suit_staff_v1";
+  const $ = (id) => document.getElementById(id);
+
+  function todayISO(){
+    const d=new Date(); const off=d.getTimezoneOffset();
+    return new Date(d.getTime()-off*60000).toISOString().slice(0,10);
+  }
+  function load(key){ try{return JSON.parse(localStorage.getItem(key)||"[]");}catch{return [];} }
+  function save(key, rows){ localStorage.setItem(key, JSON.stringify(rows)); }
+  function makeId(){ return (crypto?.randomUUID) ? crypto.randomUUID() : (Date.now()+"_"+Math.random().toString(16).slice(2)); }
+  function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
+  function clampInt(x){ const n=Number(x); if(!Number.isFinite(n)||n<0) return 0; return Math.floor(n); }
+  function pct(n,d){ return (!d||d<=0) ? 0 : (n/d)*100; }
+
+  function isValidSaleRef(ref){ return /^\d{4}$/.test(String(ref||"").trim()); }
+
+  function updateSaleRefUI(){
+    const sale = $("l_sale").value;
+    const need = sale === "Yes";
+    $("l_saleRef").required = need;
+    $("l_saleRefLabel").style.opacity = need ? "1" : "0.6";
+    $("l_saleRefHint").textContent = need ? "Required (4 digits) because Sale = Yes." : "Required only if Sale = Yes.";
+    if(!need) $("l_saleRef").value = "";
+  }
+
+  function startEndForRange(range, refDateISO){
+    const ref = new Date(refDateISO+"T00:00:00");
+    const dayStart = new Date(ref);
+    const dayEnd = new Date(ref); dayEnd.setDate(dayEnd.getDate()+1);
+
+    if(range==="day") return [dayStart, dayEnd];
+    if(range==="week"){
+      const d=new Date(ref); const day=(d.getDay()+6)%7; // Mon=0
+      const start=new Date(d); start.setDate(d.getDate()-day);
+      const end=new Date(start); end.setDate(start.getDate()+7);
+      return [start,end];
+    }
+    if(range==="month"){
+      const start=new Date(ref.getFullYear(), ref.getMonth(), 1);
+      const end=new Date(ref.getFullYear(), ref.getMonth()+1, 1);
+      return [start,end];
+    }
+    if(range==="quarter"){
+      const q=Math.floor(ref.getMonth()/3);
+      const start=new Date(ref.getFullYear(), q*3, 1);
+      const end=new Date(ref.getFullYear(), q*3+3, 1);
+      return [start,end];
+    }
+    if(range==="year"){
+      const start=new Date(ref.getFullYear(), 0, 1);
+      const end=new Date(ref.getFullYear()+1, 0, 1);
+      return [start,end];
+    }
+    return [dayStart, dayEnd];
+  }
+
+  function inRange(dateISO, start, end){
+    const d=new Date(dateISO+"T00:00:00");
+    return d>=start && d<end;
+  }
+
+  function bucketKey(date, source, staff){ return `${date}__${source}__${staff}`; }
+  function getCounts(){ return load(COUNTS_KEY); }
+  function getLeads(){ return load(LEADS_KEY); }
+
+
+  // ---------------- Staff (shared iPad) ----------------
+  function _staffKey(name){ return String(name||"").trim().toLowerCase(); }
+
+  function _normaliseStaff(list){
+    if(!Array.isArray(list)) return [];
+    // old format: ["Sam", "Amina"]
+    if(list.length && typeof list[0] === "string"){
+      list = list.map(n=>({ name:String(n||"").trim(), active:true }));
+    }
+    return list
+      .filter(x=>x && x.name && String(x.name).trim())
+      .map(x=>({ name:String(x.name).trim(), active: x.active !== false }));
+  }
+
+  function getStaff(){ return _normaliseStaff(load(STAFF_KEY)); }
+  function saveStaff(list){ save(STAFF_KEY, _normaliseStaff(list)); }
+
+  function ensureStaffFromData(){
+    const staff = getStaff();
+    const map = new Map(staff.map(s=>[_staffKey(s.name), s]));
+    let changed = false;
+
+    for(const c of getCounts()){
+      if(c.staff && String(c.staff).trim()){
+        const k = _staffKey(c.staff);
+        if(k && !map.has(k)) { map.set(k, { name:String(c.staff).trim(), active:true }); changed = true; }
+      }
+    }
+    for(const l of getLeads()){
+      for(const n of [l.capturedBy, l.servedBy, l.bookedBy]){
+        if(n && String(n).trim()){
+          const k = _staffKey(n);
+          if(k && !map.has(k)) { map.set(k, { name:String(n).trim(), active:true }); changed = true; }
+        }
+      }
+    }
+
+    if(changed || staff.length !== map.size){
+      const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name));
+      saveStaff(merged);
+    }
+  }
+
+  function populateStaffSelect(selectId, { includeBlank=true, preselect="", blankLabel="Select…" } = {}){
+    const sel = $(selectId);
+    if(!sel) return;
+
+    ensureStaffFromData();
+    const staff = getStaff();
+    const active = staff.filter(s=>s.active).map(s=>s.name).sort((a,b)=>a.localeCompare(b));
+
+    const current = (preselect || sel.value || "").trim();
+
+    sel.innerHTML = "";
+    if(includeBlank){
+      const o=document.createElement("option");
+      o.value="";
+      o.textContent=blankLabel;
+      sel.appendChild(o);
+    }
+
+    for(const name of active){
+      const o=document.createElement("option");
+      o.value=name;
+      o.textContent=name;
+      sel.appendChild(o);
+    }
+
+    if(current && ![...sel.options].some(o=>o.value===current)){
+      const o=document.createElement("option");
+      o.value=current;
+      o.textContent=`${current} (inactive)`;
+      sel.appendChild(o);
+    }
+
+    sel.value = current || "";
+  }
+
+
+
+  function activeStaffNames(){
+    ensureStaffFromData();
+    return getStaff().filter(s=>s.active).map(s=>s.name).sort((a,b)=>a.localeCompare(b));
+  }
+
+  function staffOptionsHtml(current="", { includeBlank=true, blankLabel="-" } = {}){
+    const names = activeStaffNames();
+    const cur = String(current||"").trim();
+    let out = "";
+    if(includeBlank) out += `<option value="">${escapeHtml(blankLabel)}</option>`;
+    for(const n of names){
+      const sel = (n===cur) ? "selected" : "";
+      out += `<option ${sel} value="${escapeHtml(n)}">${escapeHtml(n)}</option>`;
+    }
+    if(cur && !names.includes(cur)){
+      out += `<option selected value="${escapeHtml(cur)}">${escapeHtml(cur)} (inactive)</option>`;
+    }
+    return out;
+  }
+
+  const LEAD_STATUS_OPTIONS = ["New","Follow-up","Details received","Booked","Not interested"];
+  const OPEN_STATUS_OPTIONS = ["New","Follow-up","Details received","Not interested"];
+  const APPT_STATUS_OPTIONS = ["Scheduled","Attended","Cancelled","Rescheduled","No-show"];
+
+  function leadStatusOptionsHtml(current=""){
+    const cur = String(current||"").trim() || "New";
+    return LEAD_STATUS_OPTIONS.map(s=>`<option ${s===cur?"selected":""} value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  }
+
+  function openStatusOptionsHtml(current=""){
+    const cur = String(current||"").trim() || "New";
+    return OPEN_STATUS_OPTIONS.map(s=>`<option ${s===cur?"selected":""} value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  }
+
+  function apptStatusOptionsHtml(current=""){
+    const cur = String(current||"").trim();
+    let out = `<option value="">-</option>`;
+    for(const s of APPT_STATUS_OPTIONS){
+      out += `<option ${s===cur?"selected":""} value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+    }
+    return out;
+  }
+
+  function updateLeadById(id, patch){
+    const leads = getLeads();
+    const idx = leads.findIndex(l=>l.id===id);
+    if(idx===-1) return;
+    leads[idx] = { ...leads[idx], ...patch };
+    save(LEADS_KEY, leads);
+  }
+  function addStaffName(name){
+    const n = String(name||"").trim();
+    if(!n) return;
+    const k = _staffKey(n);
+    const staff = getStaff();
+    const found = staff.find(s=>_staffKey(s.name)===k);
+    if(found){
+      found.active = true;
+    } else {
+      staff.push({ name:n, active:true });
+    }
+    saveStaff(staff);
+  }
+
+  function toggleStaffActive(name){
+    const k = _staffKey(name);
+    const staff = getStaff();
+    const s = staff.find(x=>_staffKey(x.name)===k);
+    if(!s) return;
+    s.active = !s.active;
+    saveStaff(staff);
+  }
+
+  function renderStaff(){
+    ensureStaffFromData();
+    const tbody = $("staffTbody");
+    if(!tbody) return;
+
+    const staff = getStaff().sort((a,b)=>a.name.localeCompare(b.name));
+    tbody.innerHTML = "";
+
+    if(staff.length===0){
+      tbody.innerHTML = `<tr><td colspan="3" class="muted" style="padding:14px 8px;">No staff yet. Add a name above.</td></tr>`;
+    } else {
+      for(const s of staff){
+        tbody.innerHTML += `
+          <tr>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${s.active ? '<span class="pill ok">Active</span>' : '<span class="pill warn">Inactive</span>'}</td>
+            <td class="right" style="white-space:nowrap; display:flex; gap:8px; justify-content:flex-end;">
+              <button type="button" class="s_toggle mini" data-name="${escapeHtml(s.name)}">${s.active ? 'Deactivate' : 'Reactivate'}</button>
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    tbody.querySelectorAll('.s_toggle').forEach(btn=>{
+      btn.onclick = ()=>{
+        const name = btn.getAttribute('data-name');
+        toggleStaffActive(name);
+        renderStaff();
+        populateStaffSelect('c_staff', { includeBlank:true, preselect: $("c_staff")?.value || "" });
+      };
+    });
+
+    // Keep dropdowns up to date
+    populateStaffSelect('c_staff', { includeBlank:true, preselect: $("c_staff")?.value || "" });
+  }
+
+  function leadsByBucket(){
+    const leads = getLeads();
+    const map = {};
+    for(const l of leads) map[l.bucketKey] = (map[l.bucketKey]||0) + 1;
+    return map;
+  }
+
+  // Lead status helpers
+  function leadIsAttended(l){ return l.apptStatus === "Attended"; }
+  function leadIsSale(l){ return l.sale === "Yes" && isValidSaleRef(l.saleRef); }
+
+  // ---------------- View switching ----------------
+  function setView(view){
+    const isToday = view==="today";
+    const isLeads = view==="leads";
+    const isDash = view==="dashboard";
+    const isStaff = view==="staff";
+
+    $("viewToday").classList.toggle("hidden", !isToday);
+    $("viewLeads").classList.toggle("hidden", !isLeads);
+    $("viewDashboard").classList.toggle("hidden", !isDash);
+    $("viewStaff").classList.toggle("hidden", !isStaff);
+
+    $("tabToday").classList.toggle("active", isToday);
+    $("tabLeads").classList.toggle("active", isLeads);
+    $("tabDashboard").classList.toggle("active", isDash);
+    $("tabStaff").classList.toggle("active", isStaff);
+
+    if(isToday) renderToday();
+    if(isLeads) renderLeads();
+    if(isDash) renderDashboard();
+    if(isStaff) renderStaff();
+  }
+
+  $("tabToday").addEventListener("click", ()=>setView("today"));
+  $("tabLeads").addEventListener("click", ()=>setView("leads"));
+  $("tabDashboard").addEventListener("click", ()=>setView("dashboard"));
+  $("tabStaff").addEventListener("click", ()=>setView("staff"));  $("goLeadsFromToday").addEventListener("click", ()=>setView("leads"));
+  $("goTodayFromLeads").addEventListener("click", ()=>setView("today"));
+  // ---------------- Dashboard attribution ----------------
+  function staffForLead_AttendedSales(l){
+    const attrib = $("d_attrib").value; // "served" | "captured"
+    if(attrib === "captured") return (l.capturedBy || "—");
+    return (l.servedBy && l.servedBy.trim()) ? l.servedBy.trim() : (l.capturedBy || "—");
+  }
+
+  // ---------------- Dashboard render (UPDATED %s) ----------------
+  function renderDashboard(){
+    const range = $("d_range").value;
+    const refDate = $("d_refDate").value || todayISO();
+    const [start,end] = startEndForRange(range, refDate);
+
+    // Synchronised time filtering
+    const counts = getCounts().filter(c=>inRange(c.date, start, end));
+    const leads = getLeads().filter(l=>inRange(l.dateCaptured, start, end));
+
+    const totalNew = counts.reduce((s,r)=>s+r.newEnq,0);
+    const totalDetails = counts.reduce((s,r)=>s+r.details,0);
+    const totalBookedCounts = counts.reduce((s,r)=>s+r.booked,0);
+
+    const totalAttended = leads.filter(leadIsAttended).length;
+    const totalSales = leads.filter(leadIsSale).length;
+
+    $("kpiNew").textContent = totalNew;
+    $("kpiDetails").textContent = totalDetails;
+    $("kpiBookedCounts").textContent = totalBookedCounts;
+    $("kpiAttended").textContent = totalAttended;
+    $("kpiSales").textContent = totalSales;
+
+    // NEW KPIs
+    $("kpiDetailsToBooked").textContent = `${pct(totalBookedCounts, totalDetails).toFixed(1)}%`;
+    $("kpiAttendedToSales").textContent = `${pct(totalSales, totalAttended).toFixed(1)}%`;
+
+    // By Source
+    const bySource = {};
+    for(const c of counts){
+      bySource[c.source] ??= { new:0, details:0, booked:0, attended:0, sales:0 };
+      bySource[c.source].new += c.newEnq;
+      bySource[c.source].details += c.details;
+      bySource[c.source].booked += c.booked;
+    }
+    for(const l of leads){
+      bySource[l.source] ??= { new:0, details:0, booked:0, attended:0, sales:0 };
+      if(leadIsAttended(l)) bySource[l.source].attended += 1;
+      if(leadIsSale(l)) bySource[l.source].sales += 1;
+    }
+
+    const sBody = $("dashBySource");
+    sBody.innerHTML = "";
+    const sources = Object.keys(bySource).sort();
+    if(sources.length===0){
+      sBody.innerHTML = `<tr><td colspan="8" class="muted" style="padding:14px 8px;">No data in this timeframe.</td></tr>`;
+    } else {
+      for(const s of sources){
+        const t = bySource[s];
+        sBody.innerHTML += `
+          <tr>
+            <td>${escapeHtml(s)}</td>
+            <td>${t.new}</td>
+            <td>${t.details}</td>
+            <td>${t.booked}</td>
+            <td>${t.attended}</td>
+            <td>${t.sales}</td>
+            <td>${pct(t.booked, t.details).toFixed(1)}%</td>
+            <td>${pct(t.sales, t.attended).toFixed(1)}%</td>
+          </tr>
+        `;
+      }
+    }
+
+    // By Staff
+    const byStaff = {};
+    // Tab 1 staff credit for New/Details/Booked
+    for(const c of counts){
+      byStaff[c.staff] ??= { new:0, details:0, booked:0, attended:0, sales:0 };
+      byStaff[c.staff].new += c.newEnq;
+      byStaff[c.staff].details += c.details;
+      byStaff[c.staff].booked += c.booked;
+    }
+    // Attended/Sales credit via attribution dropdown
+    for(const l of leads){
+      const staff = staffForLead_AttendedSales(l);
+      byStaff[staff] ??= { new:0, details:0, booked:0, attended:0, sales:0 };
+      if(leadIsAttended(l)) byStaff[staff].attended += 1;
+      if(leadIsSale(l)) byStaff[staff].sales += 1;
+    }
+
+    const stBody = $("dashByStaff");
+    stBody.innerHTML = "";
+    const staffKeys = Object.keys(byStaff).sort();
+    if(staffKeys.length===0){
+      stBody.innerHTML = `<tr><td colspan="8" class="muted" style="padding:14px 8px;">No data in this timeframe.</td></tr>`;
+    } else {
+      for(const s of staffKeys){
+        const t = byStaff[s];
+        stBody.innerHTML += `
+          <tr>
+            <td>${escapeHtml(s)}</td>
+            <td>${t.new}</td>
+            <td>${t.details}</td>
+            <td>${t.booked}</td>
+            <td>${t.attended}</td>
+            <td>${t.sales}</td>
+            <td>${pct(t.booked, t.details).toFixed(1)}%</td>
+            <td>${pct(t.sales, t.attended).toFixed(1)}%</td>
+          </tr>
+        `;
+      }
+    }
+  }
+
+  $("d_range").addEventListener("change", renderDashboard);
+  $("d_refDate").addEventListener("change", renderDashboard);
+  $("d_attrib").addEventListener("change", renderDashboard);
+
+  // ---------------- Open Leads (Tab 1) ----------------
+  function isNotInterested(status){
+    const s = String(status||"").trim().toLowerCase();
+    return s==="not interested" || s==="closed"; // legacy support
+  }
+
+  function isOpenLead(l){
+    const leadStatus = String(l.leadStatus || "New").trim();
+    const hasBookedBy = !!(l.bookedBy && String(l.bookedBy).trim());
+    const hasAppt = !!(l.apptDate || l.apptTime || l.apptStatus);
+    const isClosed = isNotInterested(leadStatus);
+    // A lead becomes "not open" when it has an appointment booked (Booked By set OR appointment info present)
+    const isBooked = hasBookedBy || hasAppt;
+    return !isClosed && !isBooked;
+  }
+
+  function isBookedLead(l){
+    const leadStatus = String(l.leadStatus || "New").trim();
+    const hasBookedBy = !!(l.bookedBy && String(l.bookedBy).trim());
+    const hasAppt = !!(l.apptDate || l.apptTime || l.apptStatus);
+    return hasBookedBy || hasAppt || leadStatus === "Booked";
+  }
+
+  function renderOpenLeads(){
+    const tbody = $("openLeadsTbody");
+    if(!tbody) return;
+
+    const q = ($("o_search").value||"").toLowerCase().trim();
+    const scope = $("o_scope").value;
+    const workingDate = $("c_filterDate").value || todayISO();
+
+    let leads = getLeads().filter(isOpenLead);
+    if(scope === "day") leads = leads.filter(l => l.dateCaptured === workingDate);
+
+    if(q){
+      leads = leads.filter(l =>
+        (l.name||"").toLowerCase().includes(q) ||
+        (l.phone||"").toLowerCase().includes(q) ||
+        (l.source||"").toLowerCase().includes(q) ||
+        (l.capturedBy||"").toLowerCase().includes(q) ||
+        (l.leadStatus||"").toLowerCase().includes(q) ||
+        (l.bookedBy||"").toLowerCase().includes(q)
+      );
+    }
+
+    leads.sort((a,b)=> (a.createdAt < b.createdAt ? 1 : -1));
+
+    tbody.innerHTML = "";
+    if(leads.length===0){
+      tbody.innerHTML = `<tr><td colspan="8" class="muted" style="padding:14px 8px;">No open leads.</td></tr>`;
+      return;
+    }
+
+    for(const l of leads){
+      const statusSel = `<select class="inlineSelect small o_status" data-id="${escapeHtml(l.id)}">${openStatusOptionsHtml(l.leadStatus)}</select>`;
+      const bookedBySel = `<select class="inlineSelect small o_bookedBy" data-id="${escapeHtml(l.id)}">${staffOptionsHtml(l.bookedBy, {includeBlank:true, blankLabel:"-"})}</select>`;
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${l.dateCaptured}</td>
+          <td>${escapeHtml(l.source)}</td>
+          <td>${escapeHtml(l.capturedBy)}</td>
+          <td>${escapeHtml(l.name)}</td>
+          <td>${escapeHtml(l.phone)}</td>
+          <td>${statusSel}</td>
+          <td>${bookedBySel}</td>
+          <td class="right" style="white-space:nowrap; display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="o_edit mini" data-id="${escapeHtml(l.id)}">Edit</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    tbody.querySelectorAll(".o_edit").forEach(btn=>{
+      btn.onclick=()=>{
+        const id = btn.getAttribute("data-id");
+        const lead = getLeads().find(x=>x.id===id);
+        if(!lead) return;
+        setView("leads");
+        openLeadEdit(lead);
+      };
+    });
+
+    tbody.querySelectorAll('.o_status').forEach(sel=>{
+      sel.onchange = ()=>{
+        const id = sel.getAttribute('data-id');
+        const leadStatus = sel.value;
+        updateLeadById(id, { leadStatus });
+
+        // If details were received, jump to Tab 2 so staff can quickly fill name + phone.
+        // (Useful on shared iPad when the enquiry becomes a real lead.)
+        if(leadStatus === "Details received"){
+          const updated = getLeads().find(x=>x.id===id);
+          setView("leads");
+          if(updated) openLeadEdit(updated);
+          setTimeout(()=>{ try{ $("l_name")?.focus(); }catch{} }, 50);
+        }
+
+        renderOpenLeads();
+        renderLeads();
+        renderDashboard();
+      };
+    });
+
+    tbody.querySelectorAll('.o_bookedBy').forEach(sel=>{
+      sel.onchange = ()=>{
+        const id = sel.getAttribute('data-id');
+        const bookedBy = sel.value;
+        const patch = { bookedBy: bookedBy || "" };
+        if(bookedBy){
+          patch.leadStatus = "Booked";
+          const lead = getLeads().find(x=>x.id===id);
+          if(lead && !lead.apptStatus) patch.apptStatus = "Scheduled";
+        }
+        updateLeadById(id, patch);
+
+        // If just booked, jump to Tab 2 and open the lead so staff can quickly add appt date/time.
+        if(bookedBy){
+          const updated = getLeads().find(x=>x.id===id);
+          setView("leads");
+          if(updated) openLeadEdit(updated);
+          // focus appt date for speed
+          setTimeout(()=>{ try{ $("l_apptDate")?.focus(); }catch{} }, 50);
+        }
+
+        renderOpenLeads();
+        renderLeads();
+        renderDashboard();
+        renderAppointments();
+      };
+    });
+  }
+
+
+function renderAppointments(){
+    const date = $("a_date")?.value || todayISO();
+    const q = ($("a_search")?.value || "").toLowerCase().trim();
+    const status = $("a_status")?.value || "";
+
+    const tbody = $("apptTbody");
+    if(!tbody) return;
+
+    let appts = getLeads().filter(l=> (l.apptDate || "") === date);
+    if(status) appts = appts.filter(l=> (l.apptStatus || "") === status);
+
+    if(q){
+      appts = appts.filter(l=>{
+        return (l.name||"").toLowerCase().includes(q) ||
+               (l.phone||"").toLowerCase().includes(q) ||
+               (l.source||"").toLowerCase().includes(q) ||
+               (l.capturedBy||"").toLowerCase().includes(q) ||
+               (l.bookedBy||"").toLowerCase().includes(q) ||
+               (l.servedBy||"").toLowerCase().includes(q) ||
+               (l.saleRef||"").toLowerCase().includes(q);
+      });
+    }
+
+    appts.sort((a,b)=>{
+      const ta = (a.apptTime || "");
+      const tb = (b.apptTime || "");
+      if(ta < tb) return -1;
+      if(ta > tb) return 1;
+      return (a.name||"").localeCompare(b.name||"");
+    });
+
+    tbody.innerHTML = "";
+    if(appts.length===0){
+      tbody.innerHTML = `<tr><td colspan="11" class="muted" style="padding:14px 8px;">No appointments for this date.</td></tr>`;
+      return;
+    }
+
+    for(const l of appts){
+      const bookedBySel = `<select class="inlineSelect small a_bookedBy" data-id="${escapeHtml(l.id)}">${staffOptionsHtml(l.bookedBy, {includeBlank:true, blankLabel:"-"})}</select>`;
+      const servedBySel = `<select class="inlineSelect small a_servedBy" data-id="${escapeHtml(l.id)}">${staffOptionsHtml(l.servedBy, {includeBlank:true, blankLabel:"-"})}</select>`;
+      const statusSel = `<select class="inlineSelect small a_status" data-id="${escapeHtml(l.id)}">${apptStatusOptionsHtml(l.apptStatus)}</select>`;
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${escapeHtml(l.apptTime || "-")}</td>
+          <td>${escapeHtml(l.name || "")}</td>
+          <td>${escapeHtml(l.phone || "")}</td>
+          <td>${escapeHtml(l.source || "")}</td>
+          <td>${escapeHtml(l.capturedBy || "")}</td>
+          <td>${bookedBySel}</td>
+          <td>${servedBySel}</td>
+          <td>${statusSel}</td>
+          <td><span class="pill ${l.sale==="Yes" ? "ok" : (l.sale==="No" ? "danger" : "")}">${escapeHtml(l.sale || "-")}</span></td>
+          <td>${escapeHtml(l.saleRef || "-")}</td>
+          <td class="right" style="white-space:nowrap; display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="a_edit mini" data-id="${escapeHtml(l.id)}">Edit</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    tbody.querySelectorAll('.a_edit').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.getAttribute('data-id');
+        const lead = getLeads().find(x=>x.id===id);
+        if(lead) openLeadEdit(lead);
+      };
+    });
+
+    tbody.querySelectorAll('.a_bookedBy').forEach(sel=>{
+      sel.onchange = ()=>{
+        const id = sel.getAttribute('data-id');
+        const bookedBy = sel.value;
+        const patch = { bookedBy: bookedBy || "" };
+        if(bookedBy){
+          patch.leadStatus = "Booked";
+          const lead = getLeads().find(x=>x.id===id);
+          if(lead && !lead.apptStatus) patch.apptStatus = "Scheduled";
+        }
+        updateLeadById(id, patch);
+        renderOpenLeads();
+        renderLeads();
+        renderDashboard();
+      };
+    });
+
+    tbody.querySelectorAll('.a_servedBy').forEach(sel=>{
+      sel.onchange = ()=>{
+        const id = sel.getAttribute('data-id');
+        updateLeadById(id, { servedBy: sel.value || "" });
+        renderLeads();
+        renderDashboard();
+      };
+    });
+
+    tbody.querySelectorAll('.a_status').forEach(sel=>{
+      sel.onchange = ()=>{
+        const id = sel.getAttribute('data-id');
+        updateLeadById(id, { apptStatus: sel.value || "" });
+        renderLeads();
+        renderDashboard();
+      };
+    });
+  }
+
+  // Quick add appointment (shared iPad friendly)
+  function startAddAppointmentFlow(){
+    // Stay in Tab 2 but jump user into the form with sensible defaults
+    resetLeadForm();
+
+    const apptDate = $("a_date")?.value || todayISO();
+    $("l_leadStatus").value = "Booked";
+    $("l_apptDate").value = apptDate;
+    $("l_apptStatus").value = "Scheduled";
+
+    // If there are no buckets available, tell staff what to do
+    if($("l_bucket").disabled){
+      alert("No buckets available. Please add a Counts row in Tab 1 with Details Provided > 0 (e.g., Source = Self-booked) so you can save a lead.");
+      return;
+    }
+
+    // Make sure lead list filter doesn't hide what they've just added
+    if($("l_view")) $("l_view").value = "booked";
+    renderLeads();
+
+    // Scroll + focus for fast entry
+    try{ $("leadForm").scrollIntoView({ behavior: "smooth", block: "start" }); }catch{}
+    setTimeout(()=>{ try{ $("l_name")?.focus(); }catch{} }, 80);
+  }
+
+  function renderToday(){
+    // Keep hidden date field in sync
+    const workingDate = $("c_filterDate").value || todayISO();
+    $("c_date").value = workingDate;
+    renderCounts();
+    renderOpenLeads();
+  }
+
+// ---------------- Counts ----------------
+  function setCountsMode(mode){
+    const editing = mode==="edit";
+    $("countsModePill").textContent = editing ? "Mode: Edit" : "Mode: Add";
+    $("countsCancelBtn").classList.toggle("hidden", !editing);
+    $("countsSaveBtn").textContent = editing ? "Save Changes" : "Save Counts";
+  }
+
+  function resetCountsForm(){
+    $("c_editKey").value = "";
+    const wd = $("c_filterDate").value || todayISO();
+    $("c_date").value = wd;
+    $("c_source").value = "";
+    populateStaffSelect("c_staff", { includeBlank:true, preselect:"" });
+    $("c_new").value = 0;
+    $("c_details").value = 0;
+    $("c_booked").value = 0;
+    setCountsMode("add");
+  }
+
+  function openCountsEdit(row){
+    $("c_editKey").value = row.key;
+    $("c_filterDate").value = row.date;
+    $("c_date").value = row.date;
+    $("c_source").value = row.source;
+    populateStaffSelect("c_staff", { includeBlank:true, preselect: row.staff });
+    $("c_new").value = row.newEnq;
+    $("c_details").value = row.details;
+    $("c_booked").value = row.booked;
+    setCountsMode("edit");
+  }
+
+  $("countsCancelBtn").addEventListener("click", resetCountsForm);
+
+  function refreshBucketDropdown(preselectKey=null){
+    const sel = $("l_bucket");
+    if(!sel) return;
+
+    const counts = getCounts();
+    const leadCount = leadsByBucket();
+    const bucketsAll = counts
+      .filter(c=>c.details>0)
+      .map(c=>{
+        const entered = leadCount[c.key] || 0;
+        const remaining = Math.max(0, c.details - entered);
+        return { key:c.key, date:c.date, source:c.source, staff:c.staff, details:c.details, entered, remaining };
+      });
+
+    const remaining = bucketsAll.filter(b=>b.remaining>0);
+
+    const editingId = $("l_editId")?.value?.trim();
+    const editingLead = editingId ? getLeads().find(l=>l.id===editingId) : null;
+    const mustIncludeKey = editingLead?.bucketKey || null;
+
+    const options = [...remaining];
+    if(mustIncludeKey && !options.some(b=>b.key===mustIncludeKey)){
+      const found = bucketsAll.find(b=>b.key===mustIncludeKey);
+      if(found) options.push(found);
+    }
+
+    sel.innerHTML = "";
+    if(options.length===0){
+      sel.innerHTML = `<option value="">No available buckets (increase Details in Tab 1)</option>`;
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+
+    options.sort((a,b)=> (a.date<b.date ? 1 : (a.date>b.date ? -1 : a.source.localeCompare(b.source))));
+    for(const b of options){
+      const label = `${b.date} • ${b.source} • ${b.staff}  (remaining: ${b.remaining})`;
+      const opt = document.createElement("option");
+      opt.value = b.key;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    }
+    if(preselectKey && [...sel.options].some(o=>o.value===preselectKey)) sel.value = preselectKey;
+  }
+
+  function renderCounts(){
+    const workingDate = $("c_filterDate").value || todayISO();
+    const q = ($("c_search").value||"").toLowerCase().trim();
+    const counts = getCounts();
+    const tbody = $("countsTbody");
+    tbody.innerHTML = "";
+    const leadCount = leadsByBucket();
+
+    const filtered = counts
+      .filter(c=>{
+        if(c.date !== workingDate) return false;
+        if(!q) return true;
+        return (c.date||"").includes(q) ||
+               (c.source||"").toLowerCase().includes(q) ||
+               (c.staff||"").toLowerCase().includes(q);
+      })
+      .sort((a,b)=> (a.date<b.date ? 1 : -1));
+
+    if(filtered.length===0){
+      tbody.innerHTML = `<tr><td colspan="9" class="muted" style="padding:14px 8px;">No rows yet.</td></tr>`;
+      refreshBucketDropdown();
+      return;
+    }
+
+    for(const c of filtered){
+      const entered = leadCount[c.key] || 0;
+      const remaining = Math.max(0, c.details - entered);
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${c.date}</td>
+          <td>${escapeHtml(c.source)}</td>
+          <td>${escapeHtml(c.staff)}</td>
+          <td>${c.newEnq}</td>
+          <td>${c.details}</td>
+          <td>${c.booked}</td>
+          <td>${entered}</td>
+          <td>${remaining}</td>
+          <td class="right" style="white-space:nowrap; display:flex; gap:8px; justify-content:flex-end;">
+            ${remaining>0 ? `<button type="button" class="c_add mini" data-key="${escapeHtml(c.key)}">Add leads</button>` : ""}
+            <button type="button" class="c_edit mini" data-key="${escapeHtml(c.key)}">Edit</button>
+            <button type="button" class="c_del mini danger" data-key="${escapeHtml(c.key)}">Delete</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    tbody.querySelectorAll(".c_edit").forEach(btn=>{
+      btn.onclick=()=>{
+        const key = btn.getAttribute("data-key");
+        const row = getCounts().find(c=>c.key===key);
+        if(row) openCountsEdit(row);
+      };
+    });
+
+    tbody.querySelectorAll(".c_add").forEach(btn=>{
+      btn.onclick=()=>{
+        const key = btn.getAttribute("data-key");
+        // Jump to Tab 2 with this bucket preselected for quick lead entry
+        setView("leads");
+        resetLeadForm();
+        refreshBucketDropdown(key);
+        $("l_bucket").value = key;
+        setTimeout(()=>{ try{ $("l_name")?.focus(); }catch{} }, 50);
+      };
+    });
+
+    tbody.querySelectorAll(".c_del").forEach(btn=>{
+      btn.onclick=()=>{
+        const key = btn.getAttribute("data-key");
+        if(!confirm("Are you sure you want to delete this counts row?")) return;
+        save(COUNTS_KEY, getCounts().filter(c=>c.key!==key));
+        if($("c_editKey").value === key) resetCountsForm();
+        renderCounts(); renderLeads(); renderDashboard();
+      };
+    });
+
+    refreshBucketDropdown();
+  }
+
+  // After increasing Details in Tab 1, jump straight to Tab 2 so staff can capture
+  // the new lead's name + number (like the "Booked By" quick-jump flow).
+  function maybeJumpToLeadEntry(bucketKey, newDetails, oldDetails){
+    if(!(Number(newDetails) > Number(oldDetails))) return;
+    const entered = (leadsByBucket()[bucketKey] || 0);
+    const remaining = Math.max(0, Number(newDetails) - entered);
+    if(remaining <= 0) return;
+
+    setView("leads");
+    resetLeadForm();
+    refreshBucketDropdown(bucketKey);
+    $("l_bucket").value = bucketKey;
+    // focus name first (then staff can tab to phone)
+    setTimeout(()=>{ try{ $("l_name")?.focus(); }catch{} }, 50);
+  }
+
+  $("countsForm").addEventListener("submit",(e)=>{
+    e.preventDefault();
+    const date = $("c_date").value;
+    const source = $("c_source").value;
+    const staff = $("c_staff").value.trim();
+
+    const newEnq = clampInt($("c_new").value);
+    const details = clampInt($("c_details").value);
+    const booked = clampInt($("c_booked").value);
+
+    if(!staff) return alert("Please select a staff member.");
+    if(booked > details) return alert("Appointments booked cannot be higher than Details provided.");
+
+    const existingEditKey = $("c_editKey").value.trim();
+    const newKey = bucketKey(date, source, staff);
+    const rows = getCounts();
+
+    // Track whether Details was increased so we can prompt immediate lead entry.
+    let oldDetails = 0;
+    const prevRow = rows.find(r => r.key === (existingEditKey || newKey));
+    if(prevRow) oldDetails = clampInt(prevRow.details);
+
+    if(existingEditKey && existingEditKey !== newKey){
+      if(rows.some(r=>r.key===newKey)) return alert("A counts row already exists for that Date + Source + Staff.");
+      const idx = rows.findIndex(r=>r.key===existingEditKey);
+      if(idx !== -1){
+        rows[idx] = { key:newKey, date, source, staff, newEnq, details, booked };
+        const leads = getLeads().map(l => (l.bucketKey === existingEditKey)
+          ? ({ ...l, bucketKey:newKey, dateCaptured:date, source, capturedBy:staff })
+          : l
+        );
+        save(LEADS_KEY, leads);
+      }
+      save(COUNTS_KEY, rows);
+      resetCountsForm();
+      renderCounts(); renderLeads(); renderDashboard();
+      maybeJumpToLeadEntry(newKey, details, oldDetails);
+      return;
+    }
+
+    const key = newKey;
+    const idx = rows.findIndex(r=>r.key===key);
+    const row = { key, date, source, staff, newEnq, details, booked };
+    if(idx === -1) rows.push(row); else rows[idx] = row;
+
+    save(COUNTS_KEY, rows);
+    resetCountsForm();
+    renderCounts(); renderLeads(); renderDashboard();
+
+    // If Details increased, jump to Tab 2 to capture the new lead(s) immediately.
+    maybeJumpToLeadEntry(key, details, oldDetails);
+  });
+
+  $("c_search").addEventListener("input", renderCounts);
+
+  $("c_filterDate").addEventListener("change", ()=>{
+    const d = $("c_filterDate").value || todayISO();
+    $("c_date").value = d;
+    // If we were editing a row, cancel edit when switching days
+    if($("c_editKey").value) resetCountsForm();
+    renderToday();
+  });
+
+  $("o_search").addEventListener("input", renderOpenLeads);
+  $("o_scope").addEventListener("change", renderOpenLeads);
+
+
+  // ---------------- Leads ----------------
+  function setLeadMode(mode){
+    const editing = mode==="edit";
+    $("leadCancelBtn").classList.toggle("hidden", !editing);
+    $("leadSaveBtn").textContent = editing ? "Save Changes" : "Save Lead";
+  }
+
+  function resetLeadForm(){
+    $("l_editId").value = "";
+    $("l_name").value = "";
+    $("l_phone").value = "";
+    $("l_apptDate").value = "";
+    $("l_apptTime").value = "";
+    $("l_apptStatus").value = "";
+    populateStaffSelect("l_bookedBy", { includeBlank:true, preselect:"", blankLabel:"-" });
+    populateStaffSelect("l_servedBy", { includeBlank:true, preselect:"", blankLabel:"-" });
+    $("l_leadStatus").value = "New";
+    $("l_sale").value = "";
+    $("l_saleRef").value = "";
+    setLeadMode("add");
+    refreshBucketDropdown();
+    updateSaleRefUI();
+  }
+
+  $("leadCancelBtn").addEventListener("click", resetLeadForm);
+  $("l_sale").addEventListener("change", updateSaleRefUI);
+
+  function openLeadEdit(lead){
+    $("l_editId").value = lead.id;
+    refreshBucketDropdown(lead.bucketKey);
+    $("l_bucket").value = lead.bucketKey;
+
+    $("l_name").value = lead.name || "";
+    $("l_phone").value = lead.phone || "";
+    $("l_apptDate").value = lead.apptDate || "";
+    $("l_apptTime").value = lead.apptTime || "";
+    $("l_apptStatus").value = lead.apptStatus || "";
+    $("l_leadStatus").value = (lead.leadStatus || "New");
+    populateStaffSelect("l_bookedBy", { includeBlank:true, preselect: (lead.bookedBy || ""), blankLabel:"-" });
+    populateStaffSelect("l_servedBy", { includeBlank:true, preselect: (lead.servedBy || ""), blankLabel:"-" });
+    $("l_sale").value = lead.sale || "";
+    $("l_saleRef").value = lead.saleRef || "";
+
+    setLeadMode("edit");
+    updateSaleRefUI();
+  }
+
+  function renderLeads(){
+    refreshBucketDropdown();
+    renderAppointments();
+
+    const range = $("l_range")?.value || "all"; // all | day | week | month | quarter | year
+    const refDate = $("l_refDate")?.value || todayISO();
+    const q = ($("l_search").value||"").toLowerCase().trim();
+
+    const view = $("l_view")?.value || "booked"; // booked | all
+
+    let leads = getLeads();
+
+    // Timeframe filter
+    if(range !== "all"){
+      const [start,end] = startEndForRange(range, refDate);
+      leads = leads.filter(l=> inRange(l.dateCaptured, start, end));
+    }
+
+    // View filter (default: Booked)
+    if(view === "booked"){
+      leads = leads.filter(isBookedLead);
+    }
+
+    // Search
+    leads = leads
+      .filter(l=>{
+        if(!q) return true;
+        return (l.name||"").toLowerCase().includes(q) ||
+               (l.phone||"").toLowerCase().includes(q) ||
+               (l.source||"").toLowerCase().includes(q) ||
+               (l.capturedBy||"").toLowerCase().includes(q) ||
+               (l.bookedBy||"").toLowerCase().includes(q) ||
+               (l.servedBy||"").toLowerCase().includes(q) ||
+               (l.leadStatus||"").toLowerCase().includes(q) ||
+               (l.saleRef||"").toLowerCase().includes(q);
+      })
+      .sort((a,b)=>{
+        const aHas = !!(a.apptDate && String(a.apptDate).trim());
+        const bHas = !!(b.apptDate && String(b.apptDate).trim());
+
+        // No appointment first
+        if(aHas !== bHas) return aHas ? 1 : -1;
+
+        if(!aHas && !bHas){
+          // Both no-appointment: newest first
+          return (a.createdAt < b.createdAt) ? 1 : -1;
+        }
+
+        const aTime = (a.apptTime && /^\d{2}:\d{2}$/.test(a.apptTime)) ? a.apptTime : "00:00";
+        const bTime = (b.apptTime && /^\d{2}:\d{2}$/.test(b.apptTime)) ? b.apptTime : "00:00";
+        const aMs = new Date(`${a.apptDate}T${aTime}:00`).getTime();
+        const bMs = new Date(`${b.apptDate}T${bTime}:00`).getTime();
+        if(aMs < bMs) return -1;
+        if(aMs > bMs) return 1;
+        return (a.createdAt < b.createdAt) ? 1 : -1;
+      });
+
+    const tbody = $("leadsTbody");
+    tbody.innerHTML = "";
+
+    if(leads.length===0){
+      tbody.innerHTML = `<tr><td colspan="13" class="muted" style="padding:14px 8px;">No leads in this view.</td></tr>`;
+      return;
+    }
+
+    for(const l of leads){
+      const appt = (l.apptDate ? l.apptDate : "") + (l.apptTime ? ` ${l.apptTime}` : "");
+      tbody.innerHTML += `
+        <tr>
+          <td>${l.dateCaptured}</td>
+          <td>${escapeHtml(l.source)}</td>
+          <td>${escapeHtml(l.capturedBy)}</td>
+          <td>${escapeHtml(l.name)}</td>
+          <td>${escapeHtml(l.phone)}</td>
+          <td>${escapeHtml(isNotInterested(l.leadStatus) ? "Not interested" : (l.leadStatus || "New"))}</td>
+          <td>${escapeHtml(l.bookedBy || "—")}</td>
+          <td>${escapeHtml(appt.trim() || "—")}</td>
+          <td><span class="pill ${l.apptStatus ? "warn" : ""}">${escapeHtml(l.apptStatus || "—")}</span></td>
+          <td>${escapeHtml(l.servedBy || "—")}</td>
+          <td>${escapeHtml(l.saleRef || "—")}</td>
+          <td><span class="pill ${l.sale==="Yes" ? "ok" : (l.sale==="No" ? "danger" : "")}">${escapeHtml(l.sale || "—")}</span></td>
+          <td class="right" style="white-space:nowrap; display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="l_edit mini" data-id="${escapeHtml(l.id)}">Edit</button>
+            <button type="button" class="l_del mini danger" data-id="${escapeHtml(l.id)}">Delete</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    tbody.querySelectorAll(".l_edit").forEach(btn=>{
+      btn.onclick=()=>{
+        const id = btn.getAttribute("data-id");
+        const lead = getLeads().find(l=>l.id===id);
+        if(lead) openLeadEdit(lead);
+      };
+    });
+
+    tbody.querySelectorAll(".l_del").forEach(btn=>{
+      btn.onclick=()=>{
+        const id = btn.getAttribute("data-id");
+        if(!confirm("Are you sure you want to delete this lead?")) return;
+        save(LEADS_KEY, getLeads().filter(l=>l.id!==id));
+        if($("l_editId").value === id) resetLeadForm();
+        renderLeads(); renderCounts(); renderDashboard();
+      };
+    });
+  }
+
+
+
+  $("leadForm").addEventListener("submit",(e)=>{
+    e.preventDefault();
+
+    const leads = getLeads();
+    const editingId = $("l_editId").value.trim();
+    const isEdit = !!editingId;
+
+    const chosenBucketKey = $("l_bucket").value;
+    if(!chosenBucketKey) return alert("No available bucket. Increase Details Provided in Tab 1 first.");
+
+    const countsRow = getCounts().find(c=>c.key===chosenBucketKey);
+    if(!countsRow) return alert("Bucket not found in counts (Tab 1).");
+
+    const leadCount = leadsByBucket();
+    const enteredInBucket = leadCount[chosenBucketKey] || 0;
+    const allowed = countsRow.details;
+
+    if(!isEdit){
+      if(enteredInBucket >= allowed) return alert("This bucket is full. Increase Details Provided in Tab 1.");
+    } else {
+      const current = leads.find(l=>l.id===editingId);
+      if(!current) return alert("Lead not found.");
+      const changedBucket = current.bucketKey !== chosenBucketKey;
+      if(changedBucket){
+        const enteredNewBucket = (leadCount[chosenBucketKey] || 0);
+        if(enteredNewBucket >= allowed) return alert("New bucket is full. Increase Details Provided in Tab 1.");
+      }
+    }
+
+    const name = $("l_name").value.trim();
+    const phone = $("l_phone").value.trim();
+    const apptDate = $("l_apptDate").value;
+    const apptTime = $("l_apptTime").value;
+    let apptStatus = $("l_apptStatus").value;
+    if((apptDate || apptTime) && !apptStatus) apptStatus = "Scheduled";
+
+    const servedBy = $("l_servedBy").value.trim();
+
+    const bookedBy = $("l_bookedBy").value.trim();
+    const leadStatusRaw = $("l_leadStatus").value || "New";
+    let leadStatus = leadStatusRaw;
+    if(bookedBy && leadStatus !== "Closed") leadStatus = "Booked";
+    if(bookedBy && !apptStatus) apptStatus = "Scheduled";
+    const sale = $("l_sale").value;
+    const saleRef = $("l_saleRef").value.trim();
+
+    if(sale === "Yes" && !isValidSaleRef(saleRef)){
+      return alert("Sale reference must be exactly 4 digits (e.g., 4821).");
+    }
+
+    if(!isEdit){
+      leads.push({
+        id: makeId(),
+        createdAt: Date.now(),
+        bucketKey: chosenBucketKey,
+        dateCaptured: countsRow.date,
+        source: countsRow.source,
+        capturedBy: countsRow.staff,
+        name, phone,
+        apptDate, apptTime, apptStatus,
+        servedBy,
+        bookedBy,
+        leadStatus,
+        sale,
+        saleRef
+      });
+      save(LEADS_KEY, leads);
+      resetLeadForm();
+    } else {
+      const idx = leads.findIndex(l=>l.id===editingId);
+      const prev = leads[idx];
+      leads[idx] = {
+        ...prev,
+        bucketKey: chosenBucketKey,
+        dateCaptured: countsRow.date,
+        source: countsRow.source,
+        capturedBy: countsRow.staff,
+        name, phone,
+        apptDate, apptTime, apptStatus,
+        servedBy,
+        bookedBy,
+        leadStatus,
+        sale,
+        saleRef
+      };
+      save(LEADS_KEY, leads);
+      resetLeadForm();
+    }
+
+    renderLeads(); renderCounts(); renderDashboard();
+  });
+
+  $("l_search").addEventListener("input", renderLeads);
+  $("l_view")?.addEventListener("change", renderLeads);
+
+  $("l_range").addEventListener("change", renderLeads);
+  $("l_refDate").addEventListener("change", renderLeads);
+
+  // Appointments filters (Tab 2)
+  $("a_date").addEventListener("change", renderAppointments);
+  $("a_status").addEventListener("change", renderAppointments);
+  $("a_search").addEventListener("input", renderAppointments);
+  $("apptAddBtn")?.addEventListener("click", startAddAppointmentFlow);
+
+  // ---------------- Staff UI ----------------
+  $("staffAddBtn").addEventListener("click", ()=>{
+    const name = $("staffName").value;
+    addStaffName(name);
+    $("staffName").value = "";
+    renderStaff();
+  });
+
+  $("staffName").addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      $("staffAddBtn").click();
+    }
+  });
+
+  // ---------------- Clear All ----------------
+  $("resetAll").addEventListener("click", ()=>{
+    if(!confirm("Clear ALL counts + leads from this browser?")) return;
+    localStorage.removeItem(COUNTS_KEY);
+    localStorage.removeItem(LEADS_KEY);
+    resetCountsForm();
+    resetLeadForm();
+    renderDashboard(); renderCounts(); renderLeads();
+  });
+
+  // ---------------- Init ----------------
+  $("d_refDate").value = todayISO();
+  $("c_filterDate").value = todayISO();
+  $("c_date").value = todayISO();
+  $("a_date").value = todayISO();
+  $("l_refDate").value = todayISO();
+  if($("l_view")) $("l_view").value = "booked";
+  $("l_range").value = "all";
+  $("d_attrib").value = "served";
+  resetCountsForm();
+  resetLeadForm();
+  updateSaleRefUI();
+  setView("today");
+</script>
+</body>
+</html>
